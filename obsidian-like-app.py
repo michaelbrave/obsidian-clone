@@ -48,6 +48,7 @@ class ObsidianLikeApp:
         # Text editor
         self.text_editor = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD)
         self.text_editor.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        self.text_editor.bind("<Control-Button-1>", self.handle_link_click)
 
     def new_file(self):
         if self.current_file or self.text_editor.get(1.0, tk.END).strip():
@@ -110,8 +111,9 @@ class ObsidianLikeApp:
             self.graph.add_node(filename)
             links = re.findall(r'\[\[(.*?)\]\]', content)
             for link in links:
-                if link in self.files:
-                    self.graph.add_edge(filename, link)
+                link_with_extension = f"{link}.md" if not link.endswith('.md') else link
+                if link_with_extension in self.files:
+                    self.graph.add_edge(filename, link_with_extension)
 
     def show_graph(self):
         if not self.files:
@@ -128,6 +130,28 @@ class ObsidianLikeApp:
         canvas = FigureCanvasTkAgg(plt.gcf(), master=graph_window)
         canvas.draw()
         canvas.get_tk_widget().pack()
+
+    def handle_link_click(self, event):
+        index = self.text_editor.index(f"@{event.x},{event.y}")
+        line, col = map(int, index.split('.'))
+        
+        line_content = self.text_editor.get(f"{line}.0", f"{line}.end")
+        matches = list(re.finditer(r'\[\[(.*?)\]\]', line_content))
+        
+        for match in matches:
+            start, end = match.span()
+            if start <= col <= end:
+                link_name = match.group(1)
+                self.open_linked_file(link_name)
+                break
+
+    def open_linked_file(self, link_name):
+        link_with_extension = f"{link_name}.md" if not link_name.endswith('.md') else link_name
+        if link_with_extension in self.files:
+            full_path = os.path.join(os.path.dirname(self.current_file) if self.current_file else os.getcwd(), link_with_extension)
+            self.load_file(full_path)
+        else:
+            messagebox.showinfo("File Not Found", f"The file '{link_with_extension}' does not exist.")
 
     def run(self):
         self.master.mainloop()
